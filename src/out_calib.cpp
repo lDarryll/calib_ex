@@ -183,6 +183,48 @@ void printCoordinate(vector<cv::Point3f>  &world_pt, vector<cv::Point2f>  &image
 
 }
 
+
+void projectPoints(vector<cv::Point3f> const &worldPts, cv::Mat &rvec, cv::Mat &tvec, cv::Mat &distCoeffs, cv::Mat &cameraMatrix, vector<cv::Point2f> &imgpts)
+{
+    cv::projectPoints(worldPts, rvec, tvec, cameraMatrix,
+                      distCoeffs, imgpts);
+
+    int npts = worldPts.size();
+    cout << "Project Points:" << endl;;
+    for (int i = 0; i != npts; ++i)
+        cout << "(" << worldPts[i].x << ", " << worldPts[i].y << ", " << worldPts[i].z
+                  << ") ==> (" << imgpts[i].x << ", " << imgpts[i].y << ")" << endl;
+
+}
+
+void computeErrors(vector<cv::Point2f> const &imgpts, vector<cv::Point2f> const &real_imgpts, vector<double> &errors)
+{
+    if (imgpts.empty())
+        cout<< "imgpts is empty!" <<endl;
+
+
+    if (imgpts.size() != real_imgpts.size()) {
+        cout << "ProjectPoints: the image points are not equal" <<endl;
+    }
+
+    int npts = real_imgpts.size();
+
+    auto dist_l1 = [](cv::Point2f const &p1, cv::Point2f const&p2) {return fabs(p1.x - p2.x) + fabs(p1.y - p2.y);};
+    vector<double>(npts, 0).swap(errors);
+    for (int i = 0; i != npts; ++i)
+        errors[i] = dist_l1(imgpts[i], real_imgpts[i]);
+
+    if (!errors.empty()) {
+        double sum = 0;
+        auto acc = [&sum](double x) {sum += x;};
+        std::for_each(errors.begin(), errors.end(), acc);
+        sum /= errors.size();
+        double maxerr = *std::max_element(errors.begin(), errors.end());
+        cout << "average error: " << sum <<endl;
+        cout << "max error: " << maxerr << endl;
+    }
+}
+
 int main()
 {
     //计算以板子中心为原点的各个点的坐标
@@ -204,6 +246,8 @@ int main()
     vector<cv::Point2f> _image_2fpoints_buf;   /* 缓存每幅图像上检测到的角点 */
     vector<cv::Point2f> _image_2fpoints_seq;   /* 保存检测到的所有角点 */
     vector<cv::Point2f> _ideal_image_2fpoints; /* 保存检测到的所有角点 */
+    vector<cv::Point2f> _imgpts2f; 
+    std::vector<double> _errors;
 
     vector<cv::Point3f> _world_pt;
     // _ideal_image_2fpoints.swap();
@@ -239,6 +283,10 @@ int main()
                             _rvec, _tvec, false);
 
     cout << _tvec << endl;
+
+    projectPoints(_world_pt, _rvec, _tvec, _distCoeffs, _cameraMatrix, _imgpts2f);
+
+    computeErrors(_imgpts2f, _image_2fpoints_seq, _errors);
 
     return 0;
 }
